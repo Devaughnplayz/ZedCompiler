@@ -1,0 +1,6 @@
+use -s for assembly
+use -e for exe
+
+eg
+	python Zedc.py Main.z -e Main -- Executable Named Main
+	python Zedc.py Main.z -s Main -- Assembly File Named Main

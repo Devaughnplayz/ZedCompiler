@@ -1,0 +1,26 @@
+func strmul: void(int num, str Character){
+    while(num != 0){
+        println >> Character;
+        num--;
+    }
+    println >> "\n";
+}
+
+
+func tree: void(int n, int indent){
+    if(n == 0){
+        return 0;
+    }
+    tree(n - 1, indent + 1);
+    int i = 0;
+    while(i < indent){
+        println  >> " ";
+        i++;
+    }
+    int x = 0;
+    while(x < 2 * n - 1){
+        println >> "*";
+        x++;
+    }
+    println >> "\n";
+}
