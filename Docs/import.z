@@ -1,0 +1,3 @@
+func this_is_imported: void(){
+    println >> "This Function Is From Imports !!\n";
+}

@@ -1,0 +1,52 @@
+//list, functions
+
+//function fom last thing
+
+
+//To Declare a Function You Need The Func keyword, the name of the function a colon which is followed by the return type and also list some argumenrts and stuff
+func Test: str(str MyName, int MyAge){
+    println >> "Hello " >> MyName >> " You Are " >> MyAge >> " Years Old" >> "\n";
+}
+//currently Zed SDoes Not Have Dead Code Elimiator so useless functions will stay
+
+
+
+
+func main: int(){
+    //Clal Function
+    Test("Mr. Sigma", 1);
+
+    //List Exist in Zed Although They Only Exist for ints :( as i said earlier more support will be coming
+    int MyLIst[10] = {3, 5, 6, 7};
+    //The Size Must Be Constant as this is diffent from a vector
+
+    println >> MyLIst[1] >> "\n";
+    //print postion 1
+
+    //You Can Also Do Some Stuff Like This
+    int i = 0;
+    int x = 0;
+    int List[5] = {1, 2, 3, 4, 5};
+
+    while(i < 3){
+        x = 0;
+        println >> "[";
+        while(x < 5){
+            println >> List[x];
+            if(x < 4){
+                println >> ", ";
+            }
+            x++;
+        }
+        x = 0;
+        while(x < 5){
+            List[x] = List[x] + 1;
+            x++;
+        }
+        println >> "]\n";
+        i++;
+    }
+    //this code adds 1 to every item in the List Every Iteration
+}
+
+// -> Go Eg5;

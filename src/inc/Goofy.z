@@ -1,0 +1,6 @@
+namespace Goofy{
+    func F_ck_Around_And_Find_Out: void(){
+        println >> "Why Did You F*ck Around And Find Out B*tch\n";
+        F_ck_Around_And_Find_Out();
+    }
+}

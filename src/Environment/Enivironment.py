@@ -3,6 +3,7 @@ class Environment:
         self.Parent = Parent
         self.Variables = {}
         self.Functions = {}
+        self.NameSpace = {}
 
         self.ScopeNum = Num
 
@@ -75,3 +76,38 @@ class Environment:
             return {}        
 
         return self.Parent.Resolvefunc(VarName)
+
+
+    def declareNamesp(self, VarName, Value, env):
+        import copy
+
+        ValueCopy = copy.deepcopy(Value)
+
+        if "VarScopeName" not in list(Value.keys()):
+            Value.update({"VarScopeName":f"{VarName}_{self.ScopeNum}"})
+            ValueCopy.update({"VarScopeName":f"{VarName}_{self.ScopeNum}"})
+
+        if "Environment" not in list(Value.keys()):
+            ValueCopy.update({"Environment":env})
+
+        if VarName in list(self.NameSpace.keys()):
+           self.NameSpace[VarName]["Property"] = self.NameSpace[VarName]["Property"] + Value["Property"]
+        else:
+            self.NameSpace.update({VarName : ValueCopy})
+        
+        return Value
+    
+    def LookupNamesp(self, VarName):
+        Env = self.ResolveNamesp(VarName)
+        if Env == {}:
+            return self.UnKownVar
+        return Env.get(VarName)
+
+    def ResolveNamesp(self, VarName):
+        if VarName in list(self.NameSpace.keys()):
+            return self.NameSpace
+
+        if self.Parent == None:
+            return {}        
+
+        return self.Parent.ResolveNamesp(VarName)

@@ -1,0 +1,24 @@
+//Ok Lets Cover The Baics Arithmatic and variable
+
+func main: int(){
+    //Lets Add Stuff
+    println >> 3 + 3 >> "\n";
+/*  ^^^^^^^    ^^^^^^--Actual Expression
+    print line keyword */
+    //Floating point numbers arent supported but should be added in the next version of zed along with other stuff view the file "soon.txt" to see more
+    //You Can Do "-"(subtract) "+"(addition) "*"(Multiplaction) "/"(Divison)
+
+
+    //Variables
+    //Currently Only Int and strings are Supported
+    int MyInteger = 90;
+    str MyString = "\nHi!\n";
+
+    println >> MyInteger;
+    println >> MyString;
+
+    //You Can Also Print Multiple STring, Integers ect
+    println >>  "We Are One " >> "Together " >> "Forever";
+}
+
+// -> Go To Eg3.z

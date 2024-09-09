@@ -1,6 +1,8 @@
 use -s for assembly
 use -e for exe
+use -dbg for debug info
 
 eg
 	python Zedc.py Main.z -e Main -- Executable Named Main
 	python Zedc.py Main.z -s Main -- Assembly File Named Main
+	python Zedc.py Main.z -e Main -dbg -- prints ast, lexed tokens and compile time

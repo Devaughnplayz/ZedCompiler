@@ -274,7 +274,7 @@ class Lexer:
                                 ErrorCount+=1
                                 Reset = True
                                 break
-                            if self.Index(Pos) == '"':
+                            if self.Index(Pos) == '"' and self.Index(Pos - 1) != "\\":
                                 String+="\""
                                 break
                             String+=self.Index(Pos)

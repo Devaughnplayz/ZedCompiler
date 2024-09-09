@@ -23,6 +23,7 @@ TypeKey  = {
     "else":TokenType.Key,
     "elif":TokenType.Key,
     "while":TokenType.Key,
+    "namespace":TokenType.Key,
     "true":TokenType.Bool,
     "false":TokenType.Bool,
     "Null":TokenType.Bool,

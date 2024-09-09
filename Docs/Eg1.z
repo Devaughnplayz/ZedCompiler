@@ -1,0 +1,17 @@
+//Import Standard Libary --Currently This Is Not Needed it takes up space--
+import "stdlib.z"
+/*      ^^^^^^^^
+        standard lib */
+
+func main: int(){
+//Main function must be int return type
+    println >> "Hello, World!"; // Println Staement just prints hello world
+    return 0; //Exit Code 0 Note:: The Exit Code Will Be 0 If You Dont Have Return In The Main Fuction
+    exit 0; //Also Exits with return Code 0
+}
+ 
+//To Compile run "python Zedc.py Docs/Eg1.z(the path to the file) -e Main"
+//.\Main
+//or use -s instead for the assembly - python Zedc.py Docs/Eg1.z(the path to the file) -s Main
+//use -dbg for debug info - python Zedc.py Docs/Eg1.z(the path to the file) -e Main -dbg 
+//-> Go To Eg2.z

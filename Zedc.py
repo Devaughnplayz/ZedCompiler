@@ -26,7 +26,7 @@ def main() -> None:
         print(f"{Fore.RED}Fatal Error: {Fore.RESET}no input files compilation terminated")
         exit(1)
     if argc == 2 and argv[1] in ["-v", "--version"]:
-        print("Zedc, offical compiler for Zed version 0.0.7")
+        print("Zedc, offical compiler for Zed version 0.1.2")
         exit(0)
     if argc == 2 and argv[1] in ["-h", "--help"]:
         with open("Help.txt", "r") as File: 
@@ -66,7 +66,7 @@ def main() -> None:
         ObjName = "a.o"
         Exe = "a.exe"
         Method = argv[2]    
-    elif argc == 4:
+    elif argc >= 4:
         AssemblyName = f"{argv[3]}.asm"
         ObjName = f"{argv[3]}.o"
         Exe = f"{argv[3]}.exe"
@@ -75,13 +75,15 @@ def main() -> None:
     CodeGenClass = CodeGen(Exe, ObjName, AssemblyName, os.getcwd(), Ast, Method)
     CodeGenClass.CodeGen()
 
-    for i in LexedTokens: print(i)
-    print(dumps(Ast, indent=2))
+    if "-dbg" in argv:
+        for i in LexedTokens: print(i)
+        print(dumps(Ast, indent=2))
 
 if __name__ == '__main__':
     main()
     EndTime = time() - StartTime
-    Format_Time = "\nCompiled in {:.0f} seconds and {:.0f} milliseconds".format(EndTime, (EndTime - int(EndTime)) * 1000)
-    print(Format_Time, end="")
+    if "-dbg" in argv:
+        Format_Time = "\nCompiled in {:.0f} seconds and {:.0f} milliseconds".format(EndTime, (EndTime - int(EndTime)) * 1000)
+        print(Format_Time, end="")
     #use echo %ERRORLEVEL% in cmd Promt 
     #use $LASTEXITCODE in vscode

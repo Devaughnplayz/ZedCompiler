@@ -1,26 +1,44 @@
-func strmul: void(int num, str Character){
-    while(num != 0){
-        println >> Character;
-        num--;
+namespace std{
+    func strmul: void(int num, str Character){
+        while(num != 0){
+            println >> Character;
+            num--;
+        }
+        println >> "\n";
     }
-    println >> "\n";
-}
+
+    func tree: void(int n, int indent){
+        if(n == 0){
+            return 0;
+        }
+        tree(n - 1, indent + 1);
+        int i = 0;
+        while(i < indent){
+            println  >> " ";
+            i++;
+        }
+        int x = 0;
+        while(x < 2 * n - 1){
+            println >> "*";
+            x++;
+        }
+        println >> "\n";
+    }
 
 
-func tree: void(int n, int indent){
-    if(n == 0){
-        return 0;
-    }
-    tree(n - 1, indent + 1);
-    int i = 0;
-    while(i < indent){
-        println  >> " ";
-        i++;
-    }
-    int x = 0;
-    while(x < 2 * n - 1){
-        println >> "*";
-        x++;
-    }
-    println >> "\n";
+    str endl = "\n";
 }
+    // int i = 0;
+
+
+//----------
+    // int List[90] = {1, 8, 9, 78, 80};
+    // int i = 0;
+    // while(i < 5){
+    //     println >> "The Element At Position " >> i >> " Is " >> List[i] >> "\n";
+    //     i++;
+    // }
+
+    // println >> "Before " >> List[30] >> "\n";
+    // List[30] = 70;
+    // println >> "After " >> List[30] >> "\n";  

@@ -2,6 +2,9 @@ class Program:
     Prg = "Program"
     Main = "Main_Start_Program"
 
+class DataStruct:
+    NameSpaceDs = "NameSpaceDataStructure"
+    
 class Satement:
     ExternStmt = "ExternStatement"
     ExitStmt = "ExitStatement"
@@ -26,10 +29,11 @@ class Expression(Satement):
     VarAssExpr = "VariableAssingmentExpression"
     FuncCallExpr = "FunctionCallExpression"
     CompExpr =  "ComparisonExpression"
+    Property = "PropertyExpression"
     Null = "Null"
     ArrayAccExpr = "ArrayAccsesExpression"
     ArrayRedifExpr = "ArrayRedefinitionExpression"
-    
+    NameSpaceAccExpr = "NameSpaceAccsessExpression"    
 class StringOptions:
     def __init__(self, SplitType):
         self.SplitType = SplitType
@@ -39,3 +43,5 @@ class StringOptions:
             self.Hexi = "0Dh, 0Ah"
         if self.SplitType == "\\t":
             self.Hexi = "09h"
+        if self.SplitType == '\\"':
+            self.Hexi = "22H"

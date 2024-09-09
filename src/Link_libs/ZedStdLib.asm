@@ -2,10 +2,18 @@ section .text
     global std_print
 	global std_print_int
 	global std_list_int
+	global std_resize_buf
+	global std_concat
+
 extern GetStdHandle
 extern WriteFile
 extern ExitProcess
 extern ReadConsoleInputA
+extern GetProcessHeap
+extern HeapAlloc
+extern HeapReAlloc
+extern HeapFree
+
 
 std_print:
 	push rbp
@@ -81,6 +89,51 @@ swap:
 
 	ret
 
+std_resize_buf:
+	;Buffer in rsi
+	;New Len in r8
+	;Returns new pointer in rax - same pointer as the old buffer as it is resized
+
+	push rbp
+	mov rbp, rsp
+	sub rsp,  16
+
+	mov rdx, r8 
+	call HeapAlloc
+	mov rbx, rax
+
+	test rsi, rsi
+	jz .no_free
+	mov rdx, rsi
+	call HeapFree
+
+.no_free:
+	mov rsi, rbx
+	; mov rax, rbx
+	
+	add rsp, 16
+	mov rsp, rbp
+	pop rbp
+	ret
+
+std_concat:
+	push rbp
+	mov rbp, rsp
+	sub rsp, 48h
+	xor r11, r11
+
+.copy_loop:
+	mov al, [rsi + r11]
+	mov [rdi + r11], al
+	inc r11
+	cmp al, 0
+	jne .copy_loop
+	add rsp, 48h
+	mov rsp, rbp
+	pop rbp
+	ret
+
+
 std_input:
 	;intustions
 	;Load the String Storage in rbx
@@ -88,9 +141,6 @@ std_input:
 
 std_error:
 	ret	
-
-std_concat:
-	ret
 
 std_argv:
 	ret
@@ -102,9 +152,6 @@ std_vector:
 	ret
 
 std_Map:
-	ret
-
-std_alloc:
 	ret
 
 std_free:

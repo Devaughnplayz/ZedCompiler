@@ -1,0 +1,52 @@
+//namespacess!!
+//to create a name space do this
+namespace MyNameSpace{
+    /*
+        And your Functions And Vars
+    */
+    func Inside: void(){
+        println >> "I AM INSIDE THE NAMESPACE MYNAMESPACE\n";
+    }
+    str PrintMEE = "Yeah Im Printed";
+}
+
+//Add Things To The Name Space Later
+namespace MyNameSpace{
+    namespace InnerNamespace{
+        str ImCool = "\nIm Cool :)\n";
+    }
+
+    str IWasAddedLaterTbh = "\nrenubegrhgrnuirtinrtnioniqnonrubrniqeb";
+}
+
+func main: int(){
+    MyNameSpace::Inside();
+    //Acsses Something Inside The NameSpace
+    println >> MyNameSpace::PrintMEE;
+    println >> MyNameSpace::IWasAddedLaterTbh;
+    println >> MyNameSpace::InnerNamespace::ImCool;
+
+    //Now For Random Shit
+    //String Concatination
+    //If The Lenght is more than 500 it wont evrything after that point wont get added
+    println >> "ior3ninnu4 " + " jbrbnrnn4r5ion5 " + "kirio455mm54m\n";
+
+    //List Redefinitions
+    int MyLIst[10] = {7, 9};
+    println >> MyLIst[0] >> "\n";
+    MyLIst[0] = 9;
+    println >> MyLIst[0] >> "\n";
+
+    //Varaible Redfinitions
+    int x = 0;
+    int y;
+    int g;
+
+    println >> x >> "\n";
+    x = 5;
+    println >> x >> "\n";
+
+    y = g = x = 93;
+    println >> y;
+}
+

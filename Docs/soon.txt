@@ -1,0 +1,13 @@
+the next zed version(0.2.0) will have
+bool types
+auto types
+str list
+bool list
+and other stuff
+structs(possibly)
+
+
+it Will have one of the most import parts of any compiler a dead code eliminator
+and alot other stuff
+this version of zed should be launched next week sunday
+also 0minutes yeah the error handling is not updated everywhere currently

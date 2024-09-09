@@ -6,7 +6,7 @@ colorama.init(autoreset=True)
 #--Compiler Tools--
 #DevNote:: The Compiler parsts like the lexer are needed mailky for file imports
 from src.Lexer.Lexer import Lexer
-from src.Parser.AstTypes import Program, Satement, Expression, StringOptions
+from src.Parser.AstTypes import Program, Satement, Expression, StringOptions, DataStruct
 from src.Lexer.TokenTypes import TokenType
 from src.Environment.Enivironment import Environment
 
@@ -18,6 +18,38 @@ MemoryPointer = {
 
 #--Actual Parser--
 #Note Never Make A Compiler Again
+
+class Error:
+    def __init__(self, SourceLines, FileName):
+        self.SourceLines = SourceLines
+        self.FileName = FileName
+        self.ErrorCount = 0
+
+    def _TypeError(self, Coloum, Line, ErrorMessage, StartPos, Endpos, Underlineingchar="~", SpecialPos=None, Underlinspec="^"):
+        print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET}{Style.BRIGHT} {ErrorMessage}{Style.RESET_ALL}")
+        print(f"{Line}|{self.SourceLines[Line - 1]}")
+        if SpecialPos != None:
+            print(f"{len(str(Line)) * " "}|{Fore.RED}{(StartPos - 1) * " "}{((SpecialPos - StartPos) - 2) * Underlineingchar}{Underlinspec}{((Endpos - (SpecialPos - StartPos) - 2) - 2)* Underlineingchar}{Fore.RESET}")
+        else:
+            print(f"{len(str(Line)) * " "}|{Fore.RED}{(StartPos - 1) * " "}{(Endpos - StartPos) * Underlineingchar}{Fore.RESET}")        
+        self.ErrorCount+=1
+
+    def _SynatxError(self, Coloum, Line, ErrorMessage, Value):
+        print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}SynatxError:{Fore.RESET}{Style.BRIGHT} {ErrorMessage}{Style.RESET_ALL}")
+        print(f"{Line}|{self.SourceLines[Line - 1]}")
+        if len(Value) > 1:
+            space = " "
+        else:
+            space = ""
+
+        print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum - 1) * " "}{space}{len(Value) * "^"}{Fore.RESET}")
+        print(f"{len(str(Line)) * " "}|{Fore.BLUE}{(Coloum - 1) * " "}{space}{Value}{Fore.RESET}")
+        self.ErrorCount+=1
+
+    def End(self):
+        if self.ErrorCount != 0:
+            exit(1)
+
 class Parser:
     def __init__(self, SourceLines, LexedTokens, FileName, Environment, ImportTable=[]):
         self.FileName = FileName
@@ -28,8 +60,9 @@ class Parser:
         self.Environment = Environment
         self.FoundFloat = False
         self.Tokenscount = 0
+        self.Semi = False
 
-        #---Tbales--
+        #---Tables--
         self.LinkTable = []
 
         #Tracked Value
@@ -49,6 +82,7 @@ class Parser:
         }
 
         self.ImportTable.append(FileName)
+        self.ThrowError = Error(SourceLines, FileName)
 
     def At(self):
         return self.Tokens[0]
@@ -87,13 +121,7 @@ class Parser:
                 Line = self.Line[-2]
                 Coloum = self.Coloumend[-2]
 
-
-                print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}SyntaxError:{Fore.RESET} Expected '{Value}' instead recived '{Token.get("Value")}' ")
-                print(f"{Line}|{self.SourceLines[Line - 1]}")
-                print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum - 1) * " "}^{Fore.RESET}")
-                print(f"{len(str(Line)) * " "}|{Fore.BLUE}{(Coloum - 1) * " "}{Value}{Fore.RESET}")
-                self.ErrorCount+=1
-
+                self.ThrowError._SynatxError(Coloum, Line, f"Expected '{Value}' instead recived '{Token.get("Value")}'", Value)
         return Token
 
     def ExpectedType(self, Type, Word):
@@ -102,11 +130,7 @@ class Parser:
                 Line = self.Line[-1]
                 Coloum = self.Coloum[-1]
 
-
-                print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}SyntaxError:{Fore.RESET} Expected a {Type} after {Word}")
-                print(f"{Line}|{self.SourceLines[Line - 1]}")
-                print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum - 1) * " "}{(self.Coloumend[-1] - Coloum)* "^"}{Fore.RESET}")
-                self.ErrorCount+=1
+                self.ThrowError._SynatxError(Coloum, Line, f"Expected type '{Word}' instead recived '{self.Transalte(Token.get("Value"))}'", Word)
 
         return Token
 
@@ -136,8 +160,9 @@ class Parser:
                 self.Coloumend = []
                 self.FoundFloat = False
 
-        if self.ErrorCount > 0:
-            exit(1)
+        self.ThrowError.End()
+        # if self.ErrorCount > 0:
+        #     exit(1)
         return Ast
 
 
@@ -158,6 +183,8 @@ class Parser:
             return self.parse_if_stmt()
         elif self.GetVT(self.At(), TokenType.Key, "while"):
             return self.parse_while_stmt()
+        elif self.GetVT(self.At(), TokenType.Key, "namespace"):
+            return self.parse_namespace_stmt()
         else:
             AstNode = self.parse_expr()  
             if AstNode not in []:   
@@ -196,7 +223,7 @@ class Parser:
 
             OldEnv = self.EnvironmentList.pop()
             self.Environment = self.EnvironmentList[-1]
-            self.Environment.declarefunc(Name.get("Value"), Tree)
+            self.Environment.declarefunc(Name.get("Value"), Tree) # type: ignore
             self.EnvironmentList.append(OldEnv)
             self.Environment = OldEnv
                    
@@ -217,10 +244,7 @@ class Parser:
                         if Node.get("Value").get("Type") not in [TokenType.Int, Expression.BinExpr]: # type: ignore
                             if Node.get("Value").get("Type")== Expression.VarCallExpr: # type: ignore
                                 if Node.get("Value").get("VarType") not in ["int", "float"]: # type: ignore
-                                    print(f"{Style.BRIGHT}{self.FileName}:{self.Line[Pos + 1]}:{self.Coloum[Pos + 1]}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} '{Name.get("Value")}' expects an return type of 'int'")
-                                    print(f"{self.Line[Pos + 1]}|{self.SourceLines[self.Line[Pos + 1] - 1]}")
-                                    print(f"{len(str(self.Line[Pos + 1])) * " "}|{Fore.RED}{(self.Coloum[Pos + 2] - 1) * " "}{(self.Coloumend[Pos + 2] - self.Coloum[Pos + 2]) * "~"}{Fore.RESET}")
-                                    self.ErrorCount+=1
+                                    self.ThrowError._TypeError(self.Coloum[Pos + 1], self.Line[Pos + 1], f"'{Name.get("Value")}' expects an return type of 'int'", self.Coloum[Pos + 2], self.Coloumend[-2], "~", self.Coloum[-1])
                             elif Node.get("Value").get("Type") == Expression.FuncCallExpr: # type: ignore
                                 if Node.get("Value").get("ReturnType") not in ["int", "float"]: # type: ignore
                                 
@@ -265,7 +289,7 @@ class Parser:
         self.Expected(TokenType.Op, ":")
         RetType = self.ExpectedType(TokenType.Data, ":")
 
-        ScopeName = f"_{self.Environment.ScopeNum}"
+        ScopeName = f"_{self.Environment.ScopeNum}" # type: ignore
         self.EnvironmentNum+=1
         self.Environment = Environment(self.Environment, self.EnvironmentNum)
         self.EnvironmentList.append(self.Environment)
@@ -313,22 +337,12 @@ class Parser:
                     if Node.get("Value").get("Type") not in [TokenType.Int, Expression.BinExpr]: # type: ignore
                         if Node.get("Value").get("Type")== Expression.VarCallExpr: # type: ignore
                             if Node.get("Value").get("VarType") not in ["int", "float"]: # type: ignore
-                                print(f"{Style.BRIGHT}{self.FileName}:{self.Line[Pos + 1]}:{self.Coloum[Pos + 1]}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} '{Name.get("Value")}' expects an return type of 'int'")
-                                print(f"{self.Line[Pos + 1]}|{self.SourceLines[self.Line[Pos + 1] - 1]}")
-                                print(f"{len(str(self.Line[Pos + 1])) * " "}|{Fore.RED}{(self.Coloum[Pos + 2] - 1) * " "}{(self.Coloumend[Pos + 2] - self.Coloum[Pos + 2]) * "~"}{Fore.RESET}")
-                                self.ErrorCount+=1
+                                self.ThrowError._TypeError(self.Coloum[Pos + 1], self.Line[Pos + 1], f"'{Name.get("Value")}' expects an return type of 'int'", self.Coloum[Pos + 2], self.Coloumend[-2], "~")
                         elif Node.get("Value").get("Type") == Expression.FuncCallExpr: # type: ignore
                             if Node.get("Value").get("ReturnType") not in ["int", "float"]: # type: ignore
-                                
-                                print(f"{Style.BRIGHT}{self.FileName}:{self.Line[Pos + 1]}:{self.Coloum[Pos + 1]}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} '{Name.get("Value")}' expects an return type of 'int'")
-                                print(f"{self.Line[Pos + 1]}|{self.SourceLines[self.Line[Pos + 1] - 1]}")
-                                print(f"{len(str(self.Line[Pos + 1])) * " "}|{Fore.RED}{(self.Coloum[Pos + 2] - 1) * " "}{(self.Coloumend[Pos + 2] - self.Coloum[Pos + 2]) * "~"}{Fore.RESET}")
-                                self.ErrorCount+=1  
+                                self.ThrowError._TypeError(self.Coloum[Pos + 1], self.Line[Pos + 1], f"'{Name.get("Value")}' expects an return type of 'int'", self.Coloum[Pos + 2], self.Coloumend[-2], "~")
                         else:
-                            print(f"{Style.BRIGHT}{self.FileName}:{self.Line[Pos + 1]}:{self.Coloum[Pos + 1]}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} '{Name.get("Value")}' expects an return type of 'int'")
-                            print(f"{self.Line[Pos + 1]}|{self.SourceLines[self.Line[Pos + 1] - 1]}")
-                            print(f"{len(str(self.Line[Pos + 1])) * " "}|{Fore.RED}{(self.Coloum[Pos + 2] - 1) * " "}{(self.Coloumend[-1] - self.Coloum[Pos + 2]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1   
+                            self.ThrowError._TypeError(self.Coloum[Pos + 1], self.Line[Pos + 1], f"'{Name.get("Value")}' expects an return type of 'int'", self.Coloum[Pos + 2], self.Coloumend[-2], "~")   
             if Node.get("Type") == Satement.FuncDecStmt:
                 print(f"{Style.BRIGHT}{self.FileName}:{self.Line[Pos + 1]}:{self.Coloum[Pos + 1]}: {Style.RESET_ALL}{Fore.RED}SyntaxError:{Fore.RESET} A function can not contain another function")
                 print(f"{self.Line[Pos + 1]}|{self.SourceLines[self.Line[Pos + 1] - 1]}")
@@ -337,15 +351,10 @@ class Parser:
                 
                 GotReturn = True
             Body.append(Node)
+        if self.Semi == False:
+            self.Expected(TokenType.Sym, "}")
         
-        if GotReturn != True and RetType.get("Value") != "void":
-            print(f"{Style.BRIGHT}{self.FileName}:{self.Line[-1]}:{self.Coloum[-1]}: {Style.RESET_ALL}{Fore.MAGENTA}Warning:{Fore.RESET} '{Name.get("Value")}' does not return a value this may cause errors try:")
-            print(f"func {Name.get("Value")}: {RetType.get("Value")}({Fore.GREEN}/* Your Arguments*/{Fore.RESET})" + "{")
-            print(f"{Fore.GREEN}\t/*\n\n\tYour Code\n\n\t*/{Fore.RESET}")
-            if RetType.get("Value") == "int":
-                print(f"\treturn 0; {Fore.GREEN}//To Return Nothing in some way{Fore.RESET}" + "\n}\n")
-        self.Expected(TokenType.Sym, "}")
-
+        self.Semi = False
 
 
 
@@ -392,7 +401,7 @@ class Parser:
                 "Name":Name.get("Value"),
                 "Value":value
             }
-            self.Environment.declarevar(Name.get("Value"), Tree)
+            self.Environment.declarevar(Name.get("Value"), Tree) # type: ignore
             Args.append(Tree)
 
             if self.GetVT(self.At(), TokenType.Sym, ")"):
@@ -402,6 +411,48 @@ class Parser:
              
         self.Expected(TokenType.Sym, ")")
         return Args
+
+    def parse_namespace_stmt(self):
+        self.eat()
+        Name = self.ExpectedType(TokenType.Iden, "namespace declration")
+        Body = []
+
+        if self.Environment.ResolveNamesp(Name.get("Value")) != {}: # type: ignore
+            self.Environment = self.Environment.ResolveNamesp(Name.get("Value")).get(Name.get("Value")).get("Environment") # type: ignore
+            self.EnvironmentList.append(self.Environment)
+        else:
+            self.EnvironmentNum+=1
+            self.Environment = Environment(self.Environment, self.EnvironmentNum)
+            self.EnvironmentList.append(self.Environment)
+            self.Environment.ScopeNum = Name.get("Value") + "_namespace"
+
+        self.Expected(TokenType.Sym, "{")
+        while self.not_eof() or self.GetVT(self.At(), TokenType.Sym, "}") != True:
+            if self.At().get("Type") == TokenType.EOF:
+                break
+            if self.GetVT(self.At(), TokenType.Sym, "}") == True:
+                break
+            
+            TempTree = {
+                "Type": Expression.Property,
+                "Value":self.parse_stmt()
+            }
+
+            Body.append(TempTree)
+
+        self.Expected(TokenType.Sym, "}")
+
+        Tree = {
+            "Type" : DataStruct.NameSpaceDs,
+            "Name" : Name.get("Value"),
+            "Property" : Body,
+        }
+
+        Env = self.EnvironmentList.pop()
+        self.Environment = self.EnvironmentList[-1]
+        self.Environment.declareNamesp(Name.get("Value"), Tree, Env)
+
+        return Tree
 
     def parse_var_dec_stmt(self):
         IsConst = self.eat()
@@ -419,10 +470,12 @@ class Parser:
 
             if IsConst.get("Value") == "int":           
                 if Value.get("Type") not in [Expression.BinExpr, TokenType.Int]:
-                    print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} 'int' datatype expects an 'int' value")
-                    print(f"{Line}|{self.SourceLines[Line - 1]}")
-                    print(f"{len(str(Line)) * " "}|{Fore.RED}{End * " "}{(self.Coloumend[-1] - End) * "~"}{Fore.RESET}")
-                    self.ErrorCount+=1          
+                    self.ThrowError._TypeError(Coloum, Line, f"'int' datatype expects an 'int' value",  End, self.Coloumend, "~")
+    
+                    # print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} 'int' datatype expects an 'int' value")
+                    # print(f"{Line}|{self.SourceLines[Line - 1]}")
+                    # print(f"{len(str(Line)) * " "}|{Fore.RED}{End * " "}{(self.Coloumend[-1] - End) * "~"}{Fore.RESET}")
+                    # self.ErrorCount+=1          
 
             Tree = {
                 "Type":Satement.VarDecStmt,
@@ -433,7 +486,7 @@ class Parser:
             }
 
             self.Expected(TokenType.Sym, ";")
-            self.Environment.declarevar(Identifier.get("Value"), Tree)
+            self.Environment.declarevar(Identifier.get("Value"), Tree) # type: ignore
             return Tree
 
         Identifier = self.ExpectedType(TokenType.Iden, IsConst.get("Type"))
@@ -452,7 +505,7 @@ class Parser:
                         "Line": 0
                     }
                 }
-                self.Environment.declarevar(Identifier.get("Value"), Tree)
+                self.Environment.declarevar(Identifier.get("Value"), Tree) # type: ignore
                 return Tree
         
         if self.GetVT(self.At(), TokenType.Sym, "["):
@@ -485,7 +538,7 @@ class Parser:
                 "Elemets":Body
             }
             
-            self.Environment.declarevar(Identifier.get("Value"), Tree)
+            self.Environment.declarevar(Identifier.get("Value"), Tree) # type: ignore
             self.Expected(TokenType.Sym, ";")
             return Tree
             
@@ -502,10 +555,12 @@ class Parser:
             
         if IsConst.get("Value") == "int":           
             if Value.get("Type") not in [Expression.BinExpr, TokenType.Int]:
-                print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} 'int' datatype expects an 'int' value")
-                print(f"{Line}|{self.SourceLines[Line - 1]}")
-                print(f"{len(str(Line)) * " "}|{Fore.RED}{End * " "}{(self.Coloumend[-1] - End) * "~"}{Fore.RESET}")
-                self.ErrorCount+=1  
+                self.ThrowError._TypeError(Coloum, Line, f"'int' datatype expects an 'int' value",  End + 1, self.Coloumend[-1], "~")
+
+                # print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Coloum}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} 'int' datatype expects an 'int' value")
+                # print(f"{Line}|{self.SourceLines[Line - 1]}")
+                # print(f"{len(str(Line)) * " "}|{Fore.RED}{End * " "}{(self.Coloumend[-1] - End) * "~"}{Fore.RESET}")
+                # self.ErrorCount+=1  
 
         Tree  = {
             "Type":Satement.VarDecStmt,
@@ -516,7 +571,7 @@ class Parser:
         }
 
         self.Expected(TokenType.Sym, ";")
-        self.Environment.declarevar(Identifier.get("Value"), Tree)
+        self.Environment.declarevar(Identifier.get("Value"), Tree) # type: ignore
         return Tree 
         
     def parse_while_stmt(self):
@@ -703,7 +758,7 @@ class Parser:
             ParseClass = Parser(SourceCode.split('\n'), LexTokens, FileName.get("Value")[1:-1], self.Environment, self.ImportTable)
             Ast = ParseClass.Parser()
 
-            self.EnvironmentNum = ParseClass.Environment.ScopeNum
+            self.EnvironmentNum = ParseClass.Environment.ScopeNum # type: ignore
             self.Environment = ParseClass.Environment
             self.EnvironmentList = ParseClass.EnvironmentList
 
@@ -722,11 +777,12 @@ class Parser:
             "Arguments":Arguments
         }
 
-        self.Expected(TokenType.Sym, ";")
+        
         return Tree
 
     def parse_print_args(self):
         Args = []
+        Semi = False
 
         while self.not_eof() or self.GetVT(self.At(), TokenType.Sym, ";") != True:
             if self.At().get("Type") == TokenType.EOF:
@@ -734,9 +790,19 @@ class Parser:
             if self.GetVT(self.At(), TokenType.Sym, ";") == True:
                 break
             
-            self.Expected(TokenType.Op, ">>")
+            Token = self.eat()
+            if Token.get("Type") != TokenType.Op and Token.get("Value") != ">>":
+                Line = self.Line[-2]
+                Coloum = self.Coloum[-2]
+
+                self.ThrowError._SynatxError(Coloum + 1, Line, f"Expected '>>' or ';' instead recived '{Token.get("Value")}'", ";")
+                Semi = True
+                self.Semi = True
+                break
+
             Args.append(self.parse_expr())
-        
+
+        if Semi != True: self.Expected(TokenType.Sym, ";")
         return Args
 
     def parse_return_stmt(self):
@@ -802,9 +868,39 @@ class Parser:
         return Tree
 
     def parse_expr(self):
-        return self.parse_comparison_expr()
+        return self.parse_Or_comp_expr()
 
-    def parse_comparison_expr(self):
+    def parse_Or_comp_expr(self):
+        Left = self.parse_And_comp_expr()
+        while(self.GetVT(self.At(), TokenType.Op, "||")):
+            Operator = self.eat()
+            Right = self.parse_And_comp_expr()
+
+            Left = {
+                "Type":Expression.CompExpr,
+                "Left":Left,
+                "Right":Right,
+                "Operator":Operator
+            }
+        
+        return Left
+
+    def parse_And_comp_expr(self):
+        Left = self.parse_comparsion_expr()
+        while(self.GetVT(self.At(), TokenType.Op, "&&")):
+            Operator = self.eat()
+            Right = self.parse_comparsion_expr()
+
+            Left = {
+                "Type":Expression.CompExpr,
+                "Left":Left,
+                "Right":Right,
+                "Operator":Operator
+            }
+        
+        return Left
+
+    def parse_comparsion_expr(self):
         Left = self.parse_Rel_comparison_expr()
         while(self.GetVT(self.At(), TokenType.Op, "==") or self.GetVT(self.At(), TokenType.Op, "!=")):
             Operator = self.eat()
@@ -835,8 +931,12 @@ class Parser:
         return Left
 
     def parse_additive_expr(self):
-
+        LinePos = len(self.Line)
+        StartPos = len(self.Coloum)
         Left = self.parse_multipicitive_expr()
+
+        Line = self.Line[LinePos]
+        StartPostion = self.Coloum[StartPos]
 
         if self.GetVT(self.At(), TokenType.Op, "+") == True and Left.get("Type") in [TokenType.Str, Expression.CatExpr]:
             while(self.GetVT(self.At(), TokenType.Op, "+")):
@@ -845,35 +945,12 @@ class Parser:
                 if Right.get("Type") not in [TokenType.Str, Expression.CatExpr] or Left.get("Type") not in [TokenType.Str, Expression.CatExpr]:
                     if Right.get("Type") == Expression.VarCallExpr:
                         if Right.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])  
                     elif Left.get("Type") == Expression.VarCallExpr:
                         if Left.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
- 
-
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
                     else:
-                        Linelist = self.Line[-3:]
-                        Coloum = self.Coloum[-3:]
-                        End = self.Coloumend[-3:]
-                        Line = min(Linelist)
-                        print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                        print(f"{Line}|{self.SourceLines[Line - 1]}")
-                        print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                        self.ErrorCount+=1
+                        self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
 
                 Left = {
                     "Type":Expression.CatExpr,
@@ -891,74 +968,25 @@ class Parser:
             if Right.get("Type") not in [TokenType.Int, Expression.BinExpr, TokenType.Float] or Left.get("Type") not in [TokenType.Int, Expression.BinExpr, TokenType.Float]:
                     if Right.get("Type") == Expression.VarCallExpr:
                         if Right.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
                     elif Right.get("Type") == Expression.FuncCallExpr:
                         if Right.get("ReturnType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])   
                     elif Right.get("Type") == Expression.ArrayAccExpr:
                         if Right.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1    
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])  
 
                     elif Left.get("Type") == Expression.VarCallExpr:
                         if Left.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1]) 
                     elif Left.get("Type") == Expression.FuncCallExpr:
                         if Left.get("ReturnType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])   
                     elif Left.get("Type") == Expression.ArrayAccExpr:
                         if Left.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1                            
-                    else:   
-                        Linelist = self.Line[-3:]
-                        Coloum = self.Coloum[-3:]
-                        End = self.Coloumend[-3:]
-                        Line = min(Linelist)
-                        print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                        print(f"{Line}|{self.SourceLines[Line - 1]}")
-                        print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                        self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])                         
+                    else: 
+                        self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
 
             Left = {
                 "Type":Expression.BinExpr,
@@ -969,9 +997,14 @@ class Parser:
         return Left
 
     def parse_multipicitive_expr(self):
-        Current_Type = Expression.BinExpr 
+        LinePos = len(self.Line)
+        StartPos = len(self.Coloum)
 
         Left = self.parse_primary_expr()
+        
+        Line = self.Line[LinePos]
+        StartPostion = self.Coloum[StartPos]
+
         while(self.GetVT(self.At(), TokenType.Op, "*") or self.GetVT(self.At(), TokenType.Op, "/") or self.GetVT(self.At(), TokenType.Op, "%")):
             Operator = self.eat()
             Right = self.parse_primary_expr()
@@ -980,69 +1013,58 @@ class Parser:
             if Right.get("Type") not in [TokenType.Int, Expression.BinExpr, TokenType.Float] or Left.get("Type") not in [TokenType.Int, Expression.BinExpr, TokenType.Float]:
                     if Right.get("Type") == Expression.VarCallExpr:
                         if Right.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
                     elif Right.get("Type") == Expression.FuncCallExpr:
                         if Right.get("ReturnType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])   
+                    elif Right.get("Type") == Expression.ArrayAccExpr:
+                        if Right.get("VarType") not in ["int", "float"]:
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])  
 
                     elif Left.get("Type") == Expression.VarCallExpr:
                         if Left.get("VarType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1]) 
                     elif Left.get("Type") == Expression.FuncCallExpr:
                         if Left.get("ReturnType") not in ["int", "float"]:
-                            Linelist = self.Line[-3:]
-                            Coloum = self.Coloum[-3:]
-                            End = self.Coloumend[-3:]
-                            Line = min(Linelist)
-                            print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                            print(f"{Line}|{self.SourceLines[Line - 1]}")
-                            print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                            self.ErrorCount+=1
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])   
+                    elif Left.get("Type") == Expression.ArrayAccExpr:
+                        if Left.get("VarType") not in ["int", "float"]:
+                            self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])                         
+                    else: 
+                        self.ThrowError._TypeError(Operator.get("Coloum"), Line, f"Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'", StartPostion, self.Coloumend[-1], "~", self.Coloum[-1])
 
-                    else:
-                        Linelist = self.Line[-3:]
-                        Coloum = self.Coloum[-3:]
-                        End = self.Coloumend[-3:]
-                        Line = min(Linelist)
-                        print(f"{Style.BRIGHT}{self.FileName}:{Line}:{Operator.get("Coloum")}: {Style.RESET_ALL}{Fore.RED}TypeError:{Fore.RESET} Operand mismatch for '{Operator.get("Value")}' between '{self.Transalte(Left.get("Type"))}' and '{self.Transalte(Right.get("Type"))}'")
-                        print(f"{Line}|{self.SourceLines[Line - 1]}")
-                        print(f"{len(str(Line)) * " "}|{Fore.RED}{(Coloum[0] - 1) * " "}{(Coloum[1] - Coloum[0]) * "~"}{(End[1] - Coloum[1]) * "^"}{(End[2] - End[1]) * "~"}{Fore.RESET}")
-                        self.ErrorCount+=1
 
             Left = {
-                "Type":Current_Type,
+                "Type":Expression.BinExpr,
                 "Left":Left,
                 "Right":Right,
                 "Operator":Operator
             }
         
         return Left
+    def parse_namespace_call_expr(self):
+        Name = self.eat()
+        
+        self.Expected(TokenType.Op, "::")
+        Value = self.Environment.LookupNamesp(Name.get("Value"))
+        
+        self.Environment = Value.get("Environment") # type: ignore
+        self.EnvironmentList.append(self.Environment)
+    
+        Tree = {
+            "Type":Expression.NameSpaceAccExpr,
+            "Accses":self.parse_expr()
+        }
+
+        self.EnvironmentList.pop()
+        self.Environment = self.EnvironmentList[-1]
+
+        return Tree
 
     def parse_func_call_expr(self):
         Name = self.eat()
         
-        Value = self.Environment.Lookupfunc(Name.get("Value"))
+        Value = self.Environment.Lookupfunc(Name.get("Value")) # type: ignore
         Args = []
         self.Expected(TokenType.Sym, "(")
         Line = self.At().get("Line")
@@ -1113,9 +1135,11 @@ class Parser:
     
     def parse_var_call_expr(self):
         Name = self.At()
-        if self.Environment.Resolvefunc(Name.get("Value")) != {}:
+        if self.Environment.ResolveNamesp(Name.get("Value")) != {}: # type: ignore
+            return self.parse_namespace_call_expr()
+        elif self.Environment.Resolvefunc(Name.get("Value")) != {}: # type: ignore
             return self.parse_func_call_expr()
-        elif self.Environment.Resolve(Name.get("Value")) == {}:
+        elif self.Environment.Resolve(Name.get("Value")) == {}: # type: ignore
 
             ret = self.eat()
             
@@ -1129,7 +1153,7 @@ class Parser:
             self.ErrorCount+=1  
             return ret
         Name = self.eat()
-        Value = self.Environment.LookupVar(Name.get("Value"))
+        Value = self.Environment.LookupVar(Name.get("Value")) # type: ignore
         Call = {
             "Type":Expression.VarCallExpr,
             "VarType":Value.get("VarType"), # type: ignore
@@ -1195,7 +1219,7 @@ class Parser:
 
             Value = self.parse_expr()
 
-            self.Environment.AssingVar(self.At().get("Value"), Value)
+            self.Environment.AssingVar(self.At().get("Value"), Value) # type: ignore
             
             if self.Environment.LookupVar(Name.get("Value")).get("VarType") == "int":  # type: ignore  
                 if Value.get("Type") not in [Expression.BinExpr, TokenType.Int]:
@@ -1228,9 +1252,11 @@ class Parser:
         while(Pos < len(String)):
             if String[Pos] == "\\":
                 StringParts.append(TempStr + '"')
-                if String[Pos + 1] in ["n", "t"]:
+                if String[Pos + 1] in ["n", "t", '"', "'", "r", "b", "\\", "f", "a", "0", ]:
                     StringParts.append(StringOptions(f"\\{String[Pos + 1]}").Hexi)
                     TempStr = '"'
+                else:
+                    self.ThrowError._SynatxError(Pos + self.Coloum[-1], self.Line[-1], f"Unrecohnized escape code '\\{String[Pos + 1]}'", "  ")                
                 Pos+=1
 
             else:
@@ -1255,7 +1281,7 @@ class Parser:
             
     def parse_primary_expr(self):
         if self.GetVT(self.At(), TokenType.Sym, "("):
-            Token = self.eat()
+            self.eat()
             Expr = self.parse_expr()
             self.Expected(TokenType.Sym, ")")
             return Expr

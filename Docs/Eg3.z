@@ -1,0 +1,27 @@
+//imports are cool zed comes with a couple of standard libs but ill show 2
+import "stdlib.z"
+import "Goofy.z"
+import "Docs\import.z"
+
+func main: int(){
+    //the std lib comes with three useful things currently
+    //To Acsses something from the standard lib use "std" followes by "::" and then the function variable or whatever it is
+    std::strmul(5, "Hi\n");
+    //strmul allows you to print a string multiple times like in python where you can do (5 * "Hi ") this is the eqivalent
+    
+    std::tree(5, 0);
+    //This function just prints a "*" tree nothing special
+
+    println >> "Hello, World!" >> std::endl;
+    //if you like c++ zed also has std::endl which is just a newline char but fancy
+
+    this_is_imported();
+    //you can have files and import them over for example this is from Import.z
+
+    Goofy::F_ck_Around_And_Find_Out();
+    //as the name suggest just run the code and find out what it does run the other stuff and exclude this though
+
+} 
+
+
+// -> Go Eg4.z

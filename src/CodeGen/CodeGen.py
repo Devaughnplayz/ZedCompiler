@@ -1,5 +1,5 @@
 from src.Lexer.TokenTypes import TokenType
-from src.Parser.AstTypes import Expression, Satement, Program
+from src.Parser.AstTypes import Expression, Satement, Program, DataStruct
 
 class CodeGen:
     def __init__(self, ExeName, ObjectName, AssemblyName, Path, Ast, Option):
@@ -11,15 +11,20 @@ class CodeGen:
         self.Exe = ExeName
         self.Obj = ObjectName
         self.InMain = False
+        self.concat = 0
+
+        self.ILOVEMEOMORYLEAKSSOOOMUCH = [] #just frees memory when out of scope lol --- Used for strings not implemeted though
+        self.ConditionLable = 0
 
         #--Assembly Parts(Not All Lables)---
-        self.Header = f";--Zedc verison 0.0.7--\n;--File '{self.Ast['File']}'--\n;--Headers--\nbits 64\ndefault rel"
+        self.Header = f";--Zedc verison 0.1.2--\n;--File '{self.Ast['File']}'--\n;--Headers--\nbits 64\ndefault rel"
         self.Data = "\n;----Know Variables--\nsection .data"
         self.Bss = "\n;---Unkown Vars---\nsection .bss"
         self.Text = "\n;--Code/Text Section--\nsection .text\n\tglobal main"
         self.Externs = "\n;--Imports/Extern--\nextern ExitProcess"
         self.Main = "\n;--Entry Point--"
-
+        self.WaitMain = ""
+        
         self.LinkTable = self.Ast.get("LinkTable")
         self.Defualt = ""
 
@@ -32,6 +37,8 @@ class CodeGen:
             "std_print":False,
             "std_print_int":False,
             "std_list_int":False,
+            "std_resize_buf":False,
+            "std_concat":False
         }
 
         self.HeaderIndent = 1
@@ -77,10 +84,20 @@ class CodeGen:
         self.CreatedNumVar = False
 
         self.InFuc = "main"
+        self.InWMain = False
+        self.Global = False
+        self.WasGloabl = False
+        self.InName = [False]
 
     def OutMain(self, Info):
-        self.Main+=f"\n{self.MainIndent * "\t"}{Info}"
+        if self.InWMain == True:
+            self.OutWMain(Info)
+        else:
+            self.Main+=f"\n{self.MainIndent * "\t"}{Info}"
 
+    def OutWMain(self, Info):
+        self.WaitMain+=f"\n{self.MainIndent * "\t"}{Info}"
+    
     def OutData(self, Info):
         self.Data+=f"\n{self.DataIndent * "\t"}{Info}"
 
@@ -116,6 +133,8 @@ class CodeGen:
             self.Main+="\nmain:"
             self.AllocatePos.append(len(self.Main.splitlines()))
             self.ReachMain = True
+            if self.WaitMain != "":
+                self.Main+=self.WaitMain
             for statement in Program['Body']:
                 self.Evaluate(statement)
             
@@ -126,6 +145,7 @@ class CodeGen:
                 return x
         
             self.OutMain(f"add rsp, {Round36(self.AloocatedSpace)}")
+            self.OutMain(f"{'\n\t'.join(self.ILOVEMEOMORYLEAKSSOOOMUCH)}")
             self.Alloc()
             self.OutMain(";Main Exit Program")
             self.OutMain("mov rcx, 0")
@@ -165,10 +185,26 @@ class CodeGen:
                 exit(1)    
             
             os.remove(f"{self.Path}\\{self.Obj}")
+    
+    def EvaluateNameSpaceDataStruct(self, Node):
+        self.Global = True
+        self.InName.append(True)
+        for i in Node.get("Property"):
+            self.Evaluate(i.get("Value"))
+        
+        self.InName.pop()
+        if len(self.InName) == 1:
+            self.Global = False
+    def EvaluateNameSpaceAccsesExpr(self, Node):
+        self.Evaluate(Node.get("Accses"))
+
+
             
     def EvaluateFuncDecStmt(self, Node):
         self.InMain = False
         self.InFuc = Node.get("VarScopeName")
+        self.WasGloabl = self.Global
+        self.Global = False
         if Node.get("ReturnType") in ["int", "str", "void"]:
             self.CurrentRet = Node.get("ReturnType")
             self.SymbolTable.update({Node.get("VarScopeName"):f"{Node.get("VarScopeName")}"})
@@ -246,7 +282,7 @@ class CodeGen:
                 return x
         
             self.OutMain(f"add rsp, {Round36(self.AloocatedSpace)}")
-            
+            self.OutMain(f"{'\n\t'.join(self.ILOVEMEOMORYLEAKSSOOOMUCH)}")
             self.Alloc()
             self.OutMain("mov rax, 0")
             self.OutMain("ret")
@@ -258,6 +294,7 @@ class CodeGen:
                 self.Main+=f"\nmain_{self.MainLableCounter}:"
             self.FunctionSpace = 0      
             self.InFuc = ""
+            self.Global = self.WasGloabl
 
     def EvaluateFuncCallExpr(self, Node):
         Arguments = []
@@ -278,7 +315,6 @@ class CodeGen:
         self.OutMain(f";call function {Node.get("Name")}")
         self.OutMain(f"call {self.SymbolTable.get(Node.get("LookUpName"))}")
         self.OutMain(f";push return val")
-        self.OutMain(f"add rsp, {self.FunctionSpace}")
 
         if Node.get("ReturnType") == "int":
             self.OutMain(f"push rax")
@@ -311,28 +347,44 @@ class CodeGen:
             self.OutMain("mov rdx, 0")
             self.OutMain("cmp rdx, r11")
             self.OutMain(f"jnz Append_Loop_{self.ArrayConut}")
-            self.Main+=f"\nContinue_{self.ContinueCount}:"
+            self.Main+=f"\nContinue_Array_{self.ArrayConut}:"
             self.OutMain(f"lea rbx, {Node.get("VarScopeName")}")
 
             self.AloocatedSpace+=8
             self.BasePointer+=8
             self.OutMain(f"mov [rbp-{self.BasePointer}], rbx")
             self.SymbolTable.update({Node.get("VarScopeName"):f"[rbp-{self.BasePointer}]"})
-            self.ContinueCount+=1
 
         self.ArrayConut+=1
     def EvaluateVarDecStmt(self, Node):
-        self.Evaluate(Node.get("Value"))
-
-        if Node.get("VarScopeName")[Node.get("VarScopeName").find("_") + 1] == "0":
+        if Node.get("VarScopeName")[Node.get("VarScopeName").find("_") + 1] == "0" or self.Global == True:
             self.OutData(f";Make Global Variable {Node.get("Name")}")
             if Node.get("VarType") == "int":
+                self.InWMain = True
+                self.Evaluate(Node.get("Value"))
                 self.OutData(f"{Node.get("VarScopeName")} dq 0")
-                self.OutMain(f";Store Data in variable {Node.get("Name")}")
-                self.OutMain("pop rax")
-                self.OutMain(f"mov [{Node.get("VarScopeName")}], rax")
+                self.OutWMain(f";Store Data in variable {Node.get("Name")}")
+                self.OutWMain("pop rax")
+                self.OutWMain(f"mov [{Node.get("VarScopeName")}], rax")
                 self.SymbolTable.update({Node.get("VarScopeName"):f"[{Node.get("VarScopeName")}]"})
+                self.InWMain = False
+            elif Node.get("VarType") == "str":
+                self.InWMain = True
+                self.Evaluate(Node.get("Value"))
+                self.OutData(f"{Node.get("VarScopeName")} dq 0 \n\t{Node.get("VarScopeName")}_len dq 0")
+                self.OutWMain(f";Store Data in variable {Node.get("Name")}")
+                self.OutWMain("pop rax")
+                self.OutWMain(f"mov [{Node.get("VarScopeName")}_len], rax")
+                self.OutWMain("pop rbx")
+                self.OutWMain(f"mov [{Node.get("VarScopeName")}], rbx")
+                self.SymbolTable.update({Node.get("VarScopeName"):{
+                    "Type":"str",
+                    "Pointer":f"{Node.get("VarScopeName")}",
+                    "Size":f"[{Node.get("VarScopeName")}_len]"
+                }})
+                self.InWMain = False            
         else:
+            self.Evaluate(Node.get("Value"))
             if Node.get("VarType") == "int":
                 self.AloocatedSpace+=8
                 self.BasePointer+=8
@@ -411,22 +463,20 @@ class CodeGen:
 
         self.Evaluate(Condition)
         self.OutMain(f"{self.JmpInst} While_Loop_{WhileCon}")
-        self.Lables.append(f"While_Loop_{WhileCon}")
-        self.ContinueList.append(f"Continue_{Continue}")
+        # self.Lables.append(f"While_Loop_{WhileCon}")
+        # self.ContinueList.append(f"Continue_{Continue}")
         self.OutMain(f"jmp Continue_{Continue}")
 
-        self.Main+=f"\n{self.Lables[0]}:"
-        self.Lables = self.Lables[1:]
+        self.Main+=f"\nWhile_Loop_{WhileCon}:"
 
         for i in Node.get("Body"):
             self.Evaluate(i)
 
         self.Evaluate(Condition)
         self.OutMain(f"{self.JmpInst} While_Loop_{WhileCon}")
-        self.OutMain(f"jmp {self.ContinueList[0]}")
+        self.OutMain(f"jmp Continue_{Continue}")
 
-        self.Main+=f"\n{self.ContinueList[0]}:"
-        self.ContinueList = self.ContinueList[1:]
+        self.Main+=f"\nContinue_{Continue}:"
         
 
     def EvaluateIfStatement(self, Node):
@@ -486,7 +536,7 @@ class CodeGen:
 
         for i in Node.get("Arguments"):
             Type = self.Evaluate(i)
-            if Type[0] == TokenType.Int:
+            if Type[0] == TokenType.Int or Type[0] == Expression.BinExpr:
                 if self.ExternTable.get("std_print_int") == False:
                     self.Externs+="\nextern std_print_int"
                     self.ExternTable['std_print_int'] = True
@@ -629,6 +679,7 @@ class CodeGen:
     def EvaluateCondition(self, Node):
         self.Evaluate(Node.get("Left"))
         self.Evaluate(Node.get("Right"))
+        
         self.OutMain("pop rax")
         self.OutMain("pop rbx")
         self.OutMain("cmp rbx, rax")
@@ -692,6 +743,59 @@ class CodeGen:
         self.OutMain(f"mov rax, {self.SymbolTable.get(Node.get("LookUpName"))}")
         self.OutMain("push rax")
         
+    def EvaluateCatExpr(self, Node):
+        self.Evaluate(Node.get("Left"))
+        self.Evaluate(Node.get("Right"))
+
+        if "src/Link_libs/ZedStdLib.o" not in self.LinkTable:
+            self.LinkTable.append("src/Link_libs/ZedStdLib.o")
+
+        if self.ExternTable.get("std_concat") == False:
+            self.Externs+="\nextern std_concat"
+            self.ExternTable['std_concat'] = True
+
+        if self.ExternTable.get("std_resize_buf") == False:
+            self.Externs+="\nextern std_resize_buf"
+            self.ExternTable['std_resize_buf'] = True
+
+        #Yeah I Know So Much Asm Code Just To Concat Strings
+        self.OutBss(f"Concat_buffer_{self.concat} resb 500")
+
+        self.OutMain("pop r11 ;String 2 Length") #len
+        self.OutMain("pop r13 ;String 2 Adress") #adr  
+        
+
+        self.OutMain("pop r14 ;String 1 Legth") #len
+        self.OutMain("pop r15 ;String 1 Adress") #adr
+        self.OutMain("dec r14 ;Remove Null Terminator")
+
+        self.OutMain("mov r12, r11")
+        self.OutMain("add r12, r14 ;Get Total Lenght")
+
+        # self.OutMain("call GetProcessHeap")
+        # self.OutMain("mov rcx,")
+        # self.OutMain(f"lea rsi, [Concat_buffer_{self.concat}]")
+        # self.OutMain(f"mov r8, r12")
+        # self.OutMain(f"call std_resize_buf")
+        
+
+
+        self.OutMain("lea rsi, [r15]")
+        self.OutMain(f"lea rdi, [Concat_buffer_{self.concat}]")
+        self.OutMain("call std_concat ; Add String One to the Buffer")
+        
+        self.OutMain(f"add rdi, r14")
+        self.OutMain("lea rsi, [r13]")
+        self.OutMain("call std_concat ; Add  String Two to The Buffer ")
+
+        self.OutMain("mov rdi, 0")
+        self.OutMain(f"lea r13, [Concat_buffer_{self.concat}]")
+        self.OutMain("push r13")
+        self.OutMain("push r12")
+
+        self.concat+=1
+
+
     def EvaluateBinaryExpression(self, Node):
         self.Evaluate(Node.get("Left"))
         self.Evaluate(Node.get("Right"))
@@ -815,5 +919,14 @@ class CodeGen:
         elif Node.get("Type") == Expression.ArrayRedifExpr:
             self.EvaluateArrayRedefinitionExpr(Node)
             return Expression.ArrayRedifExpr, Node
+        elif Node.get("Type") == DataStruct.NameSpaceDs:
+            self.EvaluateNameSpaceDataStruct(Node)          
+            return DataStruct.NameSpaceDs, Node
+        elif Node.get("Type") == Expression.NameSpaceAccExpr:
+            self.EvaluateNameSpaceAccsesExpr(Node)
+            return Expression.NameSpaceAccExpr, Node
+        elif Node.get("Type") == Expression.CatExpr:
+            self.EvaluateCatExpr(Node)
+            return Expression.CatExpr, Node
         else:
             return Node

@@ -1,0 +1,45 @@
+//If, Elif, Else, While Loops
+
+func main: int(){
+    //Ok If Statements these support ==, !=, >=, <=, >, <, but not && or ||
+    //Comparsions Only Work For Integers
+
+    //The If Staement IS  Evaluated
+    if(1 == 1){
+        println >> "Hi\n";
+    }elif(2 == 2){
+        println >> "ufre4bybbureb\n";
+    }else{
+        println >> "lklll\n";
+    }
+
+    //The Elif Staement IS  Evaluated
+    if(1 == 2){
+        println >> "Hi\n";
+    }elif(2 == 2){
+        println >> "ufre4bybbureb\n";
+    }else{
+        println >> "lklll\n";
+    }
+
+    //The Else Staement IS  Evaluated
+    if(1 == 2){
+        println >> "Hi\n";
+    }elif(2 == 3){
+        println >> "ufre4bybbureb\n";
+    }else{
+        println >> "lklll\n";
+    }
+
+    //Loops are similar Actually the Exact same to the ones in c 
+    int x = 0;
+    while(x != 9){
+        println >> x >> "\n";
+        x++; //increment
+    }
+
+    return 0;
+
+}
+
+// -> Go Eg6
