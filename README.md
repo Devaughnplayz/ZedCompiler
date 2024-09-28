@@ -1,1 +1,1 @@
-*Zed is currently being remade in c++, will llvm*
+*Zed is currently being remade in c++, with llvm*
